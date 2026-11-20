@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#10201e">
-<title>Pour Guide</title>
+<title>Drink Mixer</title>
 <style>
 :root{--bg:#10201e;--sf:#183029;--ln:#2a4a41;--am:#f0a53a;--ok:#8fd694;--bad:#ff6b5e;--tx:#eee9dc;--mu:#8fa89f;color-scheme:dark}
 *{box-sizing:border-box;margin:0}
 html,body{height:100%}
 body{background:var(--bg);color:var(--tx);font:16px/1.4 ui-rounded,"SF Pro Rounded",system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);-webkit-tap-highlight-color:transparent}
-#app{max-width:480px;margin:0 auto;padding:16px;min-height:100%;display:flex;flex-direction:column;gap:14px}
+#app{max-width:480px;margin:0 auto;padding:16px 16px 34px;min-height:100%;display:flex;flex-direction:column;gap:14px}
 h1{font-size:26px;letter-spacing:-.02em}
 h2{font-size:20px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -51,24 +51,73 @@ input[type=text]{width:100%;background:var(--sf);color:var(--tx);border:1px soli
 .note{font-size:14px;color:var(--mu)}
 .warn{background:#3a2a12;border:1px solid #6b4a14;border-radius:12px;padding:10px 12px;font-size:14px}
 .sp{flex:1}
+#rev{position:fixed;right:12px;bottom:calc(8px + env(safe-area-inset-bottom));font-size:11px;color:var(--mu);opacity:.8;pointer-events:none}
 @media (prefers-reduced-motion:no-preference){#liq{transition:y .25s,height .25s}#arc{transition:stroke-dashoffset .25s}}
 </style>
 </head>
 <body>
 <div id="app"></div>
+<div id="rev"></div>
 <script>
 "use strict";
 /* ---------- data ---------- */
 const PAL=['#e8c15a','#e86a4a','#7fc8a9','#c58be0','#f0a53a','#6fb7e8'];
-const BUILTIN=[
- {n:'Margarita',i:[['Tequila',50,.94,'#e8c15a'],['Triple sec',25,1,'#f0a53a'],['Lime juice',25,1.03,'#a9d36b']]},
- {n:'Daiquiri',i:[['White rum',60,.94,'#e8dfc0'],['Lime juice',25,1.03,'#a9d36b'],['Simple syrup',15,1.23,'#f3e3a8']]},
- {n:'Whiskey sour',i:[['Bourbon',50,.94,'#c9822b'],['Lemon juice',25,1.03,'#f2e06a'],['Simple syrup',20,1.23,'#f3e3a8']]},
- {n:'Negroni',i:[['Gin',30,.94,'#cfe3e0'],['Campari',30,1,'#e0453a'],['Sweet vermouth',30,1.03,'#8a3a2a']]},
- {n:'Moscow mule',i:[['Vodka',50,.94,'#dfe8ea'],['Lime juice',15,1.03,'#a9d36b'],['Ginger beer',120,1,'#e8c15a']]},
- {n:'Cosmopolitan',i:[['Vodka',40,.94,'#dfe8ea'],['Triple sec',15,1,'#f0a53a'],['Cranberry juice',30,1.04,'#d6405a'],['Lime juice',15,1.03,'#a9d36b']]},
- {n:'Gin & tonic',i:[['Gin',50,.94,'#cfe3e0'],['Tonic water',150,1,'#bfe6ef']]}
-];
+const REV='1.4';
+const DEN=[[/beer|soda|tonic|cola|water|\bale\b/i,1],[/honey|grenadine/i,1.3],[/simple syrup|orgeat/i,1.23],[/coconut cream/i,1.1],[/cream/i,1],[/coffee liqueur|chartreuse|drambuie|cassis|mûre/i,1.1],[/triple sec|vermouth|lillet|campari|aperol|amaro/i,1.02],[/liqueur|schnapps|amaretto|cura[cç]ao|b[eé]n[eé]dictine|violette/i,1.05],[/juice|purée|espresso/i,1.04],[/worcestershire/i,1.1],[/egg white/i,1.03],[/bitters|absinthe/i,.95],[/champagne|prosecco/i,.99],[/\bgin\b|vodka|rum|tequila|whiskey|bourbon|scotch|cognac|pisco|cachaça/i,.94]];
+const COL=[[/lime/i,'#a9d36b'],[/lemon/i,'#f2e06a'],[/chartreuse/i,'#9ed36b'],[/coffee|espresso|cola|dark rum|aged rum/i,'#8a5a3a'],[/cranberry|grenadine|campari|cherry|tomato|cassis|mûre|peach|bitters/i,'#d6405a'],[/violette/i,'#c58be0'],[/orange|passion|aperol|cura[cç]ao/i,'#f0a53a'],[/whiskey|bourbon|rye|scotch|cognac|sweet vermouth|honey|amaro|drambuie|b[eé]n[eé]dictine|amaretto/i,'#c9822b'],[/pineapple/i,'#f6e08a'],[/cream|coconut|egg|prosecco|champagne/i,'#f3e9c8'],[/syrup|orgeat/i,'#f3e3a8'],[/soda|tonic|ginger|water/i,'#bfe6ef']];
+const dOf=n=>(DEN.find(x=>x[0].test(n))||[0,1])[1];
+const colOf=n=>(COL.find(x=>x[0].test(n))||[0,'#dfe8ea'])[1];
+const RAW=`Margarita|Tequila 50;Triple sec 25;Lime juice 25
+Mojito|White rum 50;Lime juice 25;Simple syrup 15;Soda water 60
+Old fashioned|Bourbon 60;Simple syrup 7;Angostura bitters 2
+Cosmopolitan|Vodka 40;Triple sec 15;Cranberry juice 30;Lime juice 15
+Negroni|Gin 30;Campari 30;Sweet vermouth 30
+Daiquiri|White rum 60;Lime juice 25;Simple syrup 15
+Whiskey sour|Bourbon 50;Lemon juice 25;Simple syrup 20
+Moscow mule|Vodka 50;Lime juice 15;Ginger beer 120
+Manhattan|Rye whiskey 60;Sweet vermouth 30;Angostura bitters 2
+Martini|Gin 60;Dry vermouth 10
+Espresso martini|Vodka 50;Coffee liqueur 20;Espresso 30;Simple syrup 5
+Piña colada|White rum 50;Coconut cream 30;Pineapple juice 90
+Aperol spritz|Prosecco 90;Aperol 60;Soda water 30
+Gin & tonic|Gin 50;Tonic water 150
+Dark 'n' stormy|Dark rum 60;Lime juice 10;Ginger beer 120
+Paloma|Tequila 50;Lime juice 15;Grapefruit juice 60;Soda water 60
+Tom Collins|Gin 50;Lemon juice 25;Simple syrup 15;Soda water 60
+Gimlet|Gin 60;Lime juice 20;Simple syrup 15
+Sidecar|Cognac 50;Triple sec 20;Lemon juice 20
+Mai tai|Aged rum 45;Orange curaçao 20;Orgeat 15;Lime juice 25
+Long Island iced tea|Vodka 15;Gin 15;White rum 15;Tequila 15;Triple sec 15;Lemon juice 25;Simple syrup 20;Cola 30
+Bloody Mary|Vodka 45;Tomato juice 90;Lemon juice 15;Worcestershire sauce 3
+Amaretto sour|Amaretto 45;Lemon juice 30;Simple syrup 10
+Caipirinha|Cachaça 60;Lime juice 25;Simple syrup 15
+Sazerac|Rye whiskey 60;Simple syrup 7;Peychaud's bitters 3;Absinthe 5
+Pisco sour|Pisco 60;Lime juice 30;Simple syrup 20;Egg white 20
+Aviation|Gin 60;Maraschino liqueur 15;Crème de violette 7;Lemon juice 22
+Last word|Gin 22;Green Chartreuse 22;Maraschino liqueur 22;Lime juice 22
+Boulevardier|Bourbon 45;Campari 30;Sweet vermouth 30
+Americano|Campari 30;Sweet vermouth 30;Soda water 60
+Kir royale|Champagne 120;Crème de cassis 15
+Mimosa|Champagne 75;Orange juice 75
+Bellini|Prosecco 100;Peach purée 50
+French 75|Gin 30;Lemon juice 15;Simple syrup 10;Champagne 60
+Bramble|Gin 50;Lemon juice 25;Simple syrup 12;Crème de mûre 15
+Whisky highball|Scotch 50;Soda water 150
+Cuba libre|White rum 50;Cola 120;Lime juice 10
+Tequila sunrise|Tequila 45;Orange juice 90;Grenadine 15
+Sex on the beach|Vodka 40;Peach schnapps 20;Orange juice 40;Cranberry juice 40
+White Russian|Vodka 50;Coffee liqueur 25;Cream 30
+Black Russian|Vodka 50;Coffee liqueur 20
+Screwdriver|Vodka 50;Orange juice 100
+Cape Codder|Vodka 50;Cranberry juice 100
+Hurricane|White rum 45;Dark rum 45;Passion fruit juice 30;Orange juice 30;Lime juice 15;Grenadine 10
+Penicillin|Scotch 60;Lemon juice 22;Honey syrup 22
+Paper plane|Bourbon 22;Aperol 22;Amaro Nonino 22;Lemon juice 22
+Vesper|Gin 45;Vodka 15;Lillet Blanc 8
+Singapore sling|Gin 30;Cherry liqueur 15;Bénédictine 7;Pineapple juice 120;Lime juice 15;Grenadine 10
+Mint julep|Bourbon 60;Simple syrup 10
+Rusty nail|Scotch 45;Drambuie 25`;
+const BUILTIN=RAW.split('\n').map(l=>{const [n,r]=l.split('|');return{n,i:r.split(';').map(t=>{const k=t.lastIndexOf(' '),nm=t.slice(0,k);return[nm,+t.slice(k+1),dOf(nm),colOf(nm)]})}});
 let custom=[];try{custom=JSON.parse(localStorage.getItem('pg.custom')||'[]')}catch(e){}
 const saveCustom=()=>{try{localStorage.setItem('pg.custom',JSON.stringify(custom))}catch(e){}};
 const recipes=()=>[...BUILTIN,...custom.map(r=>({...r,custom:1}))];
@@ -171,11 +220,12 @@ function show(){
 }
 function home(){
  const rs=recipes();
- let h=topbar('<h1>Pour guide</h1>');
+ let h=topbar('<h1>Drink Mixer</h1>');
  if(S.err==='nobt')h+='<div class="warn">This browser can’t use Web Bluetooth. On iPhone, open this page in the Bluefy browser. On Android or desktop, use Chrome.</div>';
  else if(S.err)h+='<div class="warn">Couldn’t connect: '+esc(S.err)+'</div>';
  if(!live())h+='<div class="row"><button class="pri" id="cn">Connect scale</button><button id="cn2">Timemore only</button></div>';
  else h+='<div class="row"><button id="dc">'+(S.sim?'Stop demo':'Disconnect')+'</button><div class="card li"><span>Scale</span><span id="wnow">'+W().toFixed(1)+'</span><span>g</span></div></div>';
+ h+='<input type="text" id="q" placeholder="Search '+rs.length+' recipes" autocomplete="off">';
  h+='<div class="list">'+rs.map((r,k)=>{
   const tot=r.i.reduce((a,x)=>a+x[1],0);
   return '<button class="card rec" data-r="'+k+'"><span class="sw">'+r.i.map(x=>'<i style="background:'+x[3]+';height:'+(x[1]/tot*100)+'%"></i>').join('')+'</span><span><b>'+esc(r.n)+'</b><small>'+r.i.map(x=>esc(x[0])).join(', ')+'</small></span></button>'}).join('')+'</div>';
@@ -187,6 +237,7 @@ function home(){
  $('#dc')&&($('#dc').onclick=()=>{S.sim=false;disconnect();show()});
  $('#dm')&&($('#dm').onclick=()=>{S.sim=true;S.raw=0;S.off=0;show()});
  $('#nw').onclick=()=>{editing=null;view='edit';show()};
+ $('#q').oninput=e=>{const v=e.target.value.toLowerCase();document.querySelectorAll('[data-r]').forEach(b=>b.style.display=(rs[+b.dataset.r].n+' '+rs[+b.dataset.r].i.map(x=>x[0]).join(' ')).toLowerCase().includes(v)?'':'none')};
  document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{editing=+b.dataset.e;view='edit';show()});
  document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{
   if(!live()){S.err='';alert('Connect your scale first, or try demo mode.');return}
@@ -245,6 +296,7 @@ function edit(){
 }
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&view==='pour'){try{wl=await navigator.wakeLock.request('screen')}catch(e){}}});
+$('#rev').textContent='Rev '+REV;
 show();
 </script>
 </body>
