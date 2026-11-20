@@ -82,23 +82,24 @@ const S={dev:null,tx:null,raw:0,off:0,conn:false,sim:false,busy:false,poll:0,err
 const W=()=>S.raw-S.off;
 async function send(h){if(!S.tx)return;const b=hex(h);try{S.tx.writeValueWithoutResponse?await S.tx.writeValueWithoutResponse(b):await S.tx.writeValue(b)}catch(e){}}
 async function pollOnce(){await send(POLL[0]);await sleep(100);await send(POLL[1])}
+const U=x=>'0000'+x+'-0000-1000-8000-00805f9b34fb';
 async function connect(all){
  if(!navigator.bluetooth){S.err='nobt';return refresh()}
- S.err='';S.busy=true;let st='choosing a device';refresh();
+ S.err='';S.busy=true;let st='choosing a device';head();
  try{
-  const opt={optionalServices:[0xFFF0,0xFFE0,0x181A,0x1820,0x180F,0x180A]};
-  S.dev=await navigator.bluetooth.requestDevice(all?{acceptAllDevices:true,...opt}:{filters:[{services:[0xFFF0]},{namePrefix:'TIMEMORE'}],...opt});
+  const opt={optionalServices:[U('fff0'),U('ffe0'),U('181a')]};
+  S.dev=await navigator.bluetooth.requestDevice(all?{acceptAllDevices:true,...opt}:{filters:[{services:[U('fff0')]},{namePrefix:'TIMEMORE'}],...opt});
   S.dev.addEventListener('gattserverdisconnected',()=>{S.conn=false;clearInterval(S.poll);refresh()});
   st='opening the connection';
   const srv=await S.dev.gatt.connect();
   st='finding the scale service';
   let svc;
-  try{svc=await srv.getPrimaryService(0xFFF0)}catch(e){
+  try{svc=await srv.getPrimaryService(U('fff0'))}catch(e){
    let l='';try{l=(await srv.getPrimaryServices()).map(x=>x.uuid.slice(4,8)).join(', ')}catch(_){}
    throw new Error('service FFF0 not found. Services seen: '+(l||'none'))}
   st='finding the data characteristic';
-  const rx=await svc.getCharacteristic(0xFFF1);
-  S.tx=await svc.getCharacteristic(0xFFF2).catch(()=>null);
+  const rx=await svc.getCharacteristic(U('fff1'));
+  S.tx=await svc.getCharacteristic(U('fff2')).catch(()=>null);
   rx.addEventListener('characteristicvaluechanged',e=>{
    const d=e.target.value;
    if(d.byteLength>=10&&d.getUint8(0)===0xA5&&d.getUint8(1)===0x5A&&d.getUint8(2)===1){S.raw=d.getInt16(8)/10;tick()}
@@ -108,7 +109,7 @@ async function connect(all){
   S.conn=true;S.sim=false;refresh();
   for(let p=0;p<2;p++){for(const f of INIT){await send(f);await sleep(150)}await sleep(300)}
   await pollOnce();S.poll=setInterval(pollOnce,10000);
- }catch(e){if(!/cancel|chosen/i.test(e.message||''))S.err='Failed while '+st+': '+(e.name?e.name+' - ':'')+(e.message||'no details');S.conn=false}
+ }catch(e){if(!/cancel|chosen/i.test(e.message||''))S.err='Failed while '+st+': '+[e&&e.name,e&&e.message,(typeof e==='string'?e:''),(e&&e.code)].filter(Boolean).join(' / ')+' (browser: '+navigator.userAgent.slice(-40)+')';S.conn=false}
  S.busy=false;refresh();
 }
 function disconnect(){clearInterval(S.poll);try{S.dev&&S.dev.gatt.connected&&S.dev.gatt.disconnect()}catch(e){}S.conn=false;refresh()}
