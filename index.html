@@ -83,7 +83,7 @@ const W=()=>S.raw-S.off;
 async function send(h){if(!S.tx)return;const b=hex(h);try{S.tx.writeValueWithoutResponse?await S.tx.writeValueWithoutResponse(b):await S.tx.writeValue(b)}catch(e){}}
 async function pollOnce(){await send(POLL[0]);await sleep(100);await send(POLL[1])}
 async function connect(all){
- if(!navigator.bluetooth){S.err='nobt';return head()}
+ if(!navigator.bluetooth){S.err='nobt';return refresh()}
  S.err='';S.busy=true;head();
  try{
   const opt={optionalServices:[0xFFF0,0xFFE0]};
@@ -98,13 +98,13 @@ async function connect(all){
    if(d.byteLength>=10&&d.getUint8(0)===0xA5&&d.getUint8(1)===0x5A&&d.getUint8(2)===1){S.raw=d.getInt16(8)/10;tick()}
   });
   await rx.startNotifications();
-  S.conn=true;S.sim=false;head();
+  S.conn=true;S.sim=false;refresh();
   for(let p=0;p<2;p++){for(const f of INIT){await send(f);await sleep(150)}await sleep(300)}
   await pollOnce();S.poll=setInterval(pollOnce,10000);
  }catch(e){if(!/cancel|chosen/i.test(e.message||''))S.err=e.message||'failed';S.conn=false}
- S.busy=false;head();
+ S.busy=false;refresh();
 }
-function disconnect(){clearInterval(S.poll);try{S.dev&&S.dev.gatt.connected&&S.dev.gatt.disconnect()}catch(e){}S.conn=false;head()}
+function disconnect(){clearInterval(S.poll);try{S.dev&&S.dev.gatt.connected&&S.dev.gatt.disconnect()}catch(e){}S.conn=false;refresh()}
 const live=()=>S.conn||S.sim;
 
 /* ---------- pour session ---------- */
@@ -149,6 +149,7 @@ function gauge(){
 }
 
 /* ---------- views ---------- */
+function refresh(){view==='home'?show():head()}
 function head(){
  const h=$('#hd');if(!h)return;
  h.className='pill card'+(live()?' on':'');
