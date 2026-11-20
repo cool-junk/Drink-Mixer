@@ -84,24 +84,31 @@ async function send(h){if(!S.tx)return;const b=hex(h);try{S.tx.writeValueWithout
 async function pollOnce(){await send(POLL[0]);await sleep(100);await send(POLL[1])}
 async function connect(all){
  if(!navigator.bluetooth){S.err='nobt';return refresh()}
- S.err='';S.busy=true;head();
+ S.err='';S.busy=true;let st='choosing a device';refresh();
  try{
-  const opt={optionalServices:[0xFFF0,0xFFE0]};
+  const opt={optionalServices:[0xFFF0,0xFFE0,0x181A,0x1820,0x180F,0x180A]};
   S.dev=await navigator.bluetooth.requestDevice(all?{acceptAllDevices:true,...opt}:{filters:[{services:[0xFFF0]},{namePrefix:'TIMEMORE'}],...opt});
-  S.dev.addEventListener('gattserverdisconnected',()=>{S.conn=false;clearInterval(S.poll);head();if(view==='pour')show()});
+  S.dev.addEventListener('gattserverdisconnected',()=>{S.conn=false;clearInterval(S.poll);refresh()});
+  st='opening the connection';
   const srv=await S.dev.gatt.connect();
-  const svc=await srv.getPrimaryService(0xFFF0);
+  st='finding the scale service';
+  let svc;
+  try{svc=await srv.getPrimaryService(0xFFF0)}catch(e){
+   let l='';try{l=(await srv.getPrimaryServices()).map(x=>x.uuid.slice(4,8)).join(', ')}catch(_){}
+   throw new Error('service FFF0 not found. Services seen: '+(l||'none'))}
+  st='finding the data characteristic';
   const rx=await svc.getCharacteristic(0xFFF1);
-  S.tx=await svc.getCharacteristic(0xFFF2);
+  S.tx=await svc.getCharacteristic(0xFFF2).catch(()=>null);
   rx.addEventListener('characteristicvaluechanged',e=>{
    const d=e.target.value;
    if(d.byteLength>=10&&d.getUint8(0)===0xA5&&d.getUint8(1)===0x5A&&d.getUint8(2)===1){S.raw=d.getInt16(8)/10;tick()}
   });
+  st='starting notifications';
   await rx.startNotifications();
   S.conn=true;S.sim=false;refresh();
   for(let p=0;p<2;p++){for(const f of INIT){await send(f);await sleep(150)}await sleep(300)}
   await pollOnce();S.poll=setInterval(pollOnce,10000);
- }catch(e){if(!/cancel|chosen/i.test(e.message||''))S.err=e.message||'failed';S.conn=false}
+ }catch(e){if(!/cancel|chosen/i.test(e.message||''))S.err='Failed while '+st+': '+(e.name?e.name+' - ':'')+(e.message||'no details');S.conn=false}
  S.busy=false;refresh();
 }
 function disconnect(){clearInterval(S.poll);try{S.dev&&S.dev.gatt.connected&&S.dev.gatt.disconnect()}catch(e){}S.conn=false;refresh()}
@@ -166,7 +173,7 @@ function home(){
  let h=topbar('<h1>Pour guide</h1>');
  if(S.err==='nobt')h+='<div class="warn">This browser can’t use Web Bluetooth. On iPhone, open this page in the Bluefy browser. On Android or desktop, use Chrome.</div>';
  else if(S.err)h+='<div class="warn">Couldn’t connect: '+esc(S.err)+'</div>';
- if(!live())h+='<div class="row"><button class="pri" id="cn">Connect scale</button><button id="cn2">Show all devices</button></div>';
+ if(!live())h+='<div class="row"><button class="pri" id="cn">Connect scale</button><button id="cn2">Timemore only</button></div>';
  else h+='<div class="row"><button id="dc">'+(S.sim?'Stop demo':'Disconnect')+'</button><div class="card li"><span>Scale</span><span id="wnow">'+W().toFixed(1)+'</span><span>g</span></div></div>';
  h+='<div class="list">'+rs.map((r,k)=>{
   const tot=r.i.reduce((a,x)=>a+x[1],0);
@@ -175,7 +182,7 @@ function home(){
  if(custom.length)h+='<div class="row" style="flex-wrap:wrap">'+custom.map((r,k)=>'<button data-e="'+k+'">Edit '+esc(r.n)+'</button>').join('')+'</div>';
  h+='<p class="note">Amounts are in ml. Your scale reads grams, so each ingredient has a density that converts ml to g.</p>';
  app(h);
- $('#cn')&&($('#cn').onclick=()=>connect(false));$('#cn2')&&($('#cn2').onclick=()=>connect(true));
+ $('#cn')&&($('#cn').onclick=()=>connect(true));$('#cn2')&&($('#cn2').onclick=()=>connect(false));
  $('#dc')&&($('#dc').onclick=()=>{S.sim=false;disconnect();show()});
  $('#dm')&&($('#dm').onclick=()=>{S.sim=true;S.raw=0;S.off=0;show()});
  $('#nw').onclick=()=>{editing=null;view='edit';show()};
